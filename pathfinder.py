@@ -2,111 +2,191 @@ import pygame
 from pygame.locals import *
 import sys
 import random
+import math
 
-BLACK = (0,0,0)
-WHITE = (255,255,255)
-GREEN = (0,255,0)
-RED = (255,0,0)
-WINDOW_SIZE = (600,600)
-WIDTH = 50
-HEIGHT = 50
 
-MARGIN = 10
-grid = []
-grid = [[0 for x in range(10)] for y in range(10)]
-button_down = False
-last_row = 0
-last_column = 0
+class Pathfinder:
+    def __init__(self):
+        self.BLACK = (0,0,0)
+        self.WHITE = (255,255,255)
+        self.GREEN = (0,255,0)
+        self.RED = (255,0,0)
+        self.ORANGE = (255,165,0)
+        self.BLUE = (0,0,255)
+        self.WINDOW_SIZE = (600,600)
+        self.GRAPH_SIZE = 50
+        self.WIDTH = 10
+        self.found_solution = False
+        self.HEIGHT = 10
+        self.distances = {}
+        self.previous = {}
+        self.Q = []
+        self.MARGIN = self.WIDTH/5
+        self.grid = []
+        self.grid = [[0 for x in range(self.GRAPH_SIZE)] for y in range(self.GRAPH_SIZE)]
+        self.button_down = False
+        self.last_row = 0
+        self.last_column = 0
+        self.goal_x = random.randint(0,self.GRAPH_SIZE-1)
+        self.goal_y = random.randint(0,self.GRAPH_SIZE-1)
+        self.start_x = random.randint(0,self.GRAPH_SIZE-1)
+        self.start_y = random.randint(0,self.GRAPH_SIZE-1)
+        self.DISPLAYSURF = pygame.display.set_mode(self.WINDOW_SIZE)
+        self.run_algo = False
+        self.counter = 0
+        self.path = []
+        pygame.init()
+        pygame.display.set_caption("Hello World")
+    def draw(self):
+        self.DISPLAYSURF.fill(self.BLACK)
+        for row in range(self.GRAPH_SIZE):
+            for column in range(self.GRAPH_SIZE):
+                color = self.WHITE
+                if self.grid[row][column] == 1:
+                    color = self.BLACK
+                    pygame.draw.rect(self.DISPLAYSURF, color, [(self.MARGIN + self.WIDTH) * column + self.MARGIN, (self.MARGIN + self.HEIGHT) * row + self.MARGIN, self.WIDTH, self.HEIGHT])
+                elif row == self.goal_x and self.goal_y == column:
+                    pygame.draw.rect(self.DISPLAYSURF, self.RED, [(self.MARGIN + self.WIDTH) * column + self.MARGIN, (self.MARGIN + self.HEIGHT) * row + self.MARGIN, self.WIDTH, self.HEIGHT])
+                elif row == self.start_x and self.start_y == column:
+                    pygame.draw.rect(self.DISPLAYSURF, self.GREEN, [(self.MARGIN + self.WIDTH) * column + self.MARGIN, (self.MARGIN + self.HEIGHT) * row + self.MARGIN, self.WIDTH, self.HEIGHT])
+                elif self.grid[row][column] == 5:
+                    color = self.ORANGE
+                    pygame.draw.rect(self.DISPLAYSURF, color, [(self.MARGIN + self.WIDTH) * column + self.MARGIN, (self.MARGIN + self.HEIGHT) * row + self.MARGIN, self.WIDTH, self.HEIGHT])
+                elif self.grid[row][column] == 3:
+                    color = self.BLUE
+                    pygame.draw.rect(self.DISPLAYSURF, color, [(self.MARGIN + self.WIDTH) * column + self.MARGIN, (self.MARGIN + self.HEIGHT) * row + self.MARGIN, self.WIDTH, self.HEIGHT])
+                else:
+                    pygame.draw.rect(self.DISPLAYSURF, color, [(self.MARGIN + self.WIDTH) * column + self.MARGIN, (self.MARGIN + self.HEIGHT) * row + self.MARGIN, self.WIDTH, self.HEIGHT])
+        pygame.display.update()
+    def get_neighbors(self, point):
+        neighbors = []
+        if point[0] + 1 <= self.GRAPH_SIZE:
+            neighbors.append((point[0] + 1, point[1]))
+        if point[0] - 1 >= 0:
+            neighbors.append((point[0] -1, point[1]))
+        if point[1] + 1 <= self.GRAPH_SIZE:
+            neighbors.append((point[0] ,point[1] + 1))
+        if point[1] -1 >= 0:
+            neighbors.append((point[0], point[1] - 1))
 
-class Graph():
-    def __init__(self, vertices):
-        self.V = vertices
-        self.graph = [[0 for column in range(vertices)] for row in range(vertices)]
+        return neighbors
+    def get_dist(self, point, U):
 
-    def printSolution(self, dist):
-        print("Vertex \tDistance from Source")
-        print(dist)
-        for node in range(self.V):
-            print(node, "\t", dist[node])
+        if self.grid[point[0]][point[1]] == 1:
+            return 2**100
+        return math.sqrt( ((U[0] - point[0])**2 + (U[1] - point[1])**2) )
+    def set_path(self, path):
+        for point in path:
+            self.grid[point[0]][point[1]] = 5
+    def init_dijkstra(self):
+        for row in range(self.GRAPH_SIZE):
+            for column in range(self.GRAPH_SIZE):
+                self.distances[(row,column)] = 2**100
+                self.previous[(row,column)] = None
+                self.Q.append((row,column))
+        self.distances[(self.start_x, self.start_y)] = 0
 
-    def minDistance(self, dist,sptSet):
-        min_index = 0
-        min = 1000000000
-        for v in range(self.V):
-            if dist[v] < min and sptSet[v] == False:
-                min = dist[v]
-                min_index = v
-        return min_index
+    def get_smallest_in_q(self):
+        smallest_val = 2**1000
+        smallest_point = ""
+        for point in self.Q:
+            if self.distances[point] < smallest_val:
+                smallest_val = self.distances[point]
+                smallest_point = point
+        return smallest_point
 
-    def dijkstra(self, src):
-        dist = [1000000000] * self.V
-        dist[src] = 0
-        sptSet = [False] * self.V
+    def get_path(self):
+        path = []
+        path.append((self.goal_x, self.goal_y))
+        next_val = (self.goal_x, self.goal_y)
+        while True:
+            next_val = self.previous[next_val]
+            path.append(next_val)
+            if next_val == (self.start_x, self.start_y):
+                return path
+    def reset(self):
+        self.grid = [[0 for x in range(self.GRAPH_SIZE)] for y in range(self.GRAPH_SIZE)]
+        self.goal_x = random.randint(0,self.GRAPH_SIZE-1)
+        self.goal_y = random.randint(0,self.GRAPH_SIZE-1)
+        self.start_x = random.randint(0,self.GRAPH_SIZE-1)
+        self.start_y = random.randint(0,self.GRAPH_SIZE-1)
+        self.found_solution = False
+        self.run_algo = False
+        self.button_down = False
+        self.last_row = 0
+        self.last_column = 0
+        self.path = []
+        self.counter = 0
+        self.init_dijkstra()
+    def run_game(self):
+        print(self.goal_x, self.goal_y, self.start_x, self.start_y)
+        self.init_dijkstra()
+        while True:
+            for event in pygame.event.get():
+                pos = pygame.mouse.get_pos()
+                if event.type == QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    self.button_down = True
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    self.button_down = False
+                elif event.type == pygame.KEYDOWN:
+                    if(event.key == pygame.K_RETURN):
+                        print("Running algo")
+                        self.run_algo = True
+                    if(event.key == pygame.K_BACKSPACE):
+                        print("RESETING")
+                        self.reset()
+                if(self.button_down):
+                    column = int(pos[0] // (self.WIDTH + self.MARGIN))
+                    row = int(pos[1] // (self.HEIGHT + self.MARGIN))
+                    print("Click ", pos, "Grid coordinates: ", row, column)
+                    if(self.last_row != row or self.last_column != column):
+                        if (self.grid[row][column] == 0):
+                            if(row == self.goal_x and self.goal_y == column):
+                                self.grid[row][column] = 0
+                            elif(row == self.start_x and column == self.start_y):
+                                self.grid[row][column] = 0
+                            else:
+                                self.grid[row][column] = 1
+                        else:
+                            self.grid[row][column] = 0
+                    self.last_row = row
+                    self.last_column = column
+            if(self.run_algo):
 
-        for cout in range(self.V):
-            u = self.minDistance(dist, sptSet)
+                if len(self.Q) > 0 and self.found_solution == False:
+                    U = self.get_smallest_in_q()
+                    self.Q.remove(U)
+                    neighbors = self.get_neighbors(U)
+                    for neighbor in neighbors:
+                        if neighbor in self.Q:
+                            if self.grid[neighbor[0]][neighbor[1]] == 0:
+                                self.grid[neighbor[0]][neighbor[1]] = 3
+                                alt = self.distances[U] + self.get_dist(neighbor, U)
+                                if alt < self.distances[neighbor]:
+                                    self.distances[neighbor] = alt
+                                    self.previous[neighbor] = U
+                                if neighbor == (self.goal_x, self.goal_y):
+                                    self.found_solution = True
+                if self.found_solution:
 
-            sptSet[u] = True
-
-            for v in range(self.V):
-                print("Currently testing: " ,u,v)
-                if self.graph[u][v] > 0 and sptSet[v] == False and dist[v] > dist[u] + self.graph[u][v]:
-                    dist[v] = dist[u] + self.graph[u][v]
-        self.printSolution(dist)
+                    try:
+                        self.path = self.get_path()
+                        if self.counter < len(self.path):
+                            current_point = self.path[self.counter]
+                            self.grid[current_point[0]][current_point[1]] = 5
+                            self.counter += 1
+                    except Exception as e:
+                        print("No solution!")
+                        self.run_algo = False
+            self.draw()
 
 if __name__ == "__main__":
     print("Hello world")
-    pygame.init()
-    DISPLAYSURF = pygame.display.set_mode(WINDOW_SIZE)
-    pygame.display.set_caption("Hello World")
-    goal_x = random.randint(0,10)
-    goal_y = random.randint(0,10)
-    start_x = random.randint(0,10)
-    start_y = random.randint(0,10)
-    g = Graph(10)
-    print(goal_x, goal_y, start_x, start_y)
-    while True:
-        for event in pygame.event.get():
-            pos = pygame.mouse.get_pos()
-            if event.type == QUIT:
-                pygame.quit()
-                sys.exit()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                button_down = True
-            elif event.type == pygame.MOUSEBUTTONUP:
-                button_down = False
-            elif event.type == pygame.KEYDOWN:
-                if(event.key == pygame.K_RETURN):
-                    print("Running algorithm ")
-                    g.graph = grid
-                    g.dijkstra(0)
-            if(button_down):
-                column = pos[0] // (WIDTH + MARGIN)
-                row = pos[1] // (HEIGHT + MARGIN)
-                print("Click ", pos, "Grid coordinates: ", row, column)
-                if(last_row != row or last_column != column):
-                    if (grid[row][column] == 0):
-                        if(row == goal_x and goal_y == column):
-                            grid[row][column] = 0
-                        elif(row == start_x and column == start_y):
-                            grid[row][column] = 0
-                        else:
-                            grid[row][column] = 1
-                    else:
-                        grid[row][column] = 0
-                last_row = row
-                last_column = column
-        DISPLAYSURF.fill(BLACK)
 
-        for row in range(10):
-            for column in range(10):
-                color = WHITE
-                if grid[row][column] == 1:
-                    color = GREEN
-                elif row == goal_x and goal_y == column:
-                    pygame.draw.rect(DISPLAYSURF, GREEN, [(MARGIN + WIDTH) * column + MARGIN, (MARGIN + HEIGHT) * row + MARGIN, WIDTH, HEIGHT])
-                elif row == start_x and start_y == column:
-                    pygame.draw.rect(DISPLAYSURF, RED, [(MARGIN + WIDTH) * column + MARGIN, (MARGIN + HEIGHT) * row + MARGIN, WIDTH, HEIGHT])
-                else:
-                    pygame.draw.rect(DISPLAYSURF, color, [(MARGIN + WIDTH) * column + MARGIN, (MARGIN + HEIGHT) * row + MARGIN, WIDTH, HEIGHT])
-        pygame.display.update()
+
+
+    p = Pathfinder()
+    p.run_game()
